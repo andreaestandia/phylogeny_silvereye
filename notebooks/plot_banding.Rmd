@@ -1,0 +1,73 @@
+---
+title: "plot_banding.Rmd"
+author: "Andrea Estandia"
+date: "03/08/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, echo=FALSE}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r, echo=FALSE}
+source("./src/phylo_silvereye_source.R")
+```
+
+```{r}
+banding_records <-
+  read_csv(file.path(reports_path, "banding",
+                     "silvereye-banding-records.csv"))
+```
+
+```{r}
+recovery_records <-
+  read_csv(file.path(reports_path, "banding",
+                     "silvereye-recovery-records.csv"))
+```
+
+```{r}
+full <- left_join(banding_records, recovery_records, by="BAND")
+```
+
+```{r}
+world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
+```
+
+
+```{r}
+# Calculate the distance between the points
+full$distance <- sqrt((full$LONGITUDE - full$RECOVERY_LON)^2 + (full$LATITUDE - full$RECOVERY_LAT)^2)
+
+ggplot(data = world) +
+  geom_sf(fill = "#999999") +
+  geom_segment(
+    data = full,
+    aes(x = LONGITUDE, y = LATITUDE, xend = RECOVERY_LON, yend = RECOVERY_LAT, color = rescale(distance, to = c(1, 0))),
+    size = 1,
+    alpha = 0.8
+  ) +
+  scale_color_viridis_c(option = "magma", direction = -1) +  
+  coord_sf(xlim = c(105, 165),
+           ylim = c(-48, -8),
+           expand = FALSE) +
+  theme(
+    panel.background = element_rect(fill = "#403f3f"),  
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.ticks = element_blank(),
+    plot.margin = margin(0.2, 0.2, 0.2, 0.2, "cm")
+  )
+
+```
+

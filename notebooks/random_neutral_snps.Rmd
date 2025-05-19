@@ -1,0 +1,53 @@
+---
+  title: "2_random_neutral_snps.Rmd"
+author: "Andrea Estandia<br>"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  github_document:
+  toc: true
+toc_depth: 4
+editor_options:
+  chunk_output_type: console
+---
+  <br>
+  
+```{r setup, echo=FALSE}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r, echo=FALSE}
+source("./src/phylo_silvereye_source.R")
+```
+
+```{r}
+selection <- npyLoad(file.path(reports_path, 
+                               "pcangsd", "phylogeny_pca.selection.npy"))
+pvals.pc1 <- pchisq(selection[,1], 1, lower.tail=F)
+pvals.pc2 <- pchisq(selection[,2], 1, lower.tail=F)
+pvals.pc3 <- pchisq(selection[,3], 1, lower.tail=F)
+
+pvals <- as.data.frame(cbind(pvals.pc1, pvals.pc2, pvals.pc3))
+
+pos<-read.table(file.path(data_path, 
+                          "dfs","pos"),colC=c("factor","integer"),sep="_")
+
+names(pos)<-c("chr","pos")
+
+df <- cbind(pos, pvals)
+```
+
+```{r}
+subset <- df %>% 
+  filter(chr!="chr4A") %>% 
+  filter(pvals.pc1>0.2 & pvals.pc2>0.2 & pvals.pc3>0.2) %>% 
+  dplyr::select(chr, pos)
+#Retaining 2347860
+write.csv(subset, file.path(reports_path,
+                            "subset_neutral_snps.csv"), 
+          row.names = F)
+```
+
+

@@ -1,0 +1,42 @@
+---
+title: "plot_iqtree.Rmd"
+author: "Andrea Estandia"
+date: "03/08/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, echo=FALSE}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r, echo=FALSE}
+source("./src/phylo_silvereye_source.R")
+```
+
+```{r}
+iqtree <-
+  read.tree(file.path(reports_path, "iqtree",
+                     "run1", "run1.contree"))
+```
+
+```{r}
+ggtree(iqtree,
+       size = 2.5,
+       continuous = T) +
+  geom_tree(aes(color = label, continuous = T), size = 2.5)  +
+  geom_tree() +
+  scale_colour_gradient2(
+    midpoint = mean(iqtree@data$label, na.rm = T),
+    low = "#3B6290",
+    high = "#FF863D"
+  )  +
+  theme_tree2(legend.position = 'left') + ggnewscale::new_scale_colour()  +
+  geom_tippoint(aes(col = discr_mass, size = 2)) +
+  scale_colour_viridis_c()
+```
+

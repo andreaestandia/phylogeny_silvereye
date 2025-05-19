@@ -1,0 +1,294 @@
+---
+  title: "distance_fst.Rmd"
+author: "Andrea Estandia<br>"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  github_document:
+  toc: true
+toc_depth: 4
+editor_options:
+  chunk_output_type: console
+---
+  
+```{r}
+source("./src/phylo_silvereye_source.R")
+```
+
+```{r}
+# Coordinates for each location
+xy <- rbind(
+  c(167.8423, -15.3826), # ambae
+  c(168.135153, -16.270327),  # ambrym
+  c(-176.504248, -44.004558),  # chatham island
+  c(168.3219, -17.7430),  # efate
+  c(167.5, -14.25),       # gaua
+  c(165.49, -21.399),  # Grand terre
+  c(151.9144, -23.4425),  # heron island
+  c(-151.0056, -16.74), # huahine
+  c(159.0848, -31.5556),  # lord howe island
+  c(167.2404, -20.9083),  # lifou
+  c(167.4167, -16.3028),  # malekula
+  c(168.0376, -21.4810),  # mare
+  c(-152.257, -16.4427), # maupiti
+  c(-149.828, -17.5467), # moorea
+  c(167.9249, -29.0408),  # norfolk island
+  c(151.7789, -32.9267),  # newcastle
+  c(170.4733, -45.8506),  # nz north island
+  c(172.6362, -40.9006),  # nz south island
+  c(166.5615, -20.6434),  # ouvea
+  c(168.2058, -15.7815),  # pentecost
+  c(153.0219, -27.4705),  # QLD
+  c(-151.4543, -16.7805), # raiatea
+  c(167.1785, -15.5111),  # espiritu santo
+  c(138.6119, -34.9285),  # SA
+  c(-149.4068, -17.6797), # tahiti
+  c(169.2500, -19.4551),  # tanna
+  c(147.3249, -42.8821),  # tasmania
+  c(144.9631, -37.8136),  # victoria
+  c(117.8502, -34.9225),   # WA
+  c(167.4561, -13.8185)  # vanua lava
+)
+
+
+dist_matrix <- distm(xy)
+
+rownames(dist_matrix) <- colnames(dist_matrix) <- c(
+  "ambae",
+  "ambrym",
+  "chatham",
+  "efate",
+  "gaua",
+  "GT",
+  "heron",
+  "huahine",
+  "LHI",
+  "lifou",
+  "malekula",
+  "mare",
+  "maupiti",
+  "moorea",
+  "norfolk",
+  "NSW",
+  "nz_north",
+  "nz_south",
+  "ouvea",
+  "pentecost",
+  "QLD",
+  "raiatea",
+  "santo",
+  "SA",
+  "tahiti",
+  "tanna",
+  "tasmania",
+  "victoria",
+  "WA",
+  "vanua_lava"
+)
+
+heatmap(dist_matrix)
+```
+
+```{r}
+# Flip the coordinates from (lon, lat) to (lat, lon)
+flipped_xy <- xy[, c(2, 1)]
+
+# Create an sf object for the points
+points_sf <- st_as_sf(data.frame(lon = flipped_xy[, 2], lat = flipped_xy[, 1]), coords = c("lon", "lat"), crs = 4326)
+
+# World map for context
+world_map <- sf::st_as_sf(maps::map("world", plot = FALSE, fill = TRUE))
+
+# Plot the points on the world map using ggplot2 and sf
+ggplot() +
+  geom_sf(data = world_map, fill = "lightgrey", color = "lightgrey", size = 0) +
+  geom_sf(data = points_sf, size = 3) +
+  ggtitle("Locations on World Map") +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  scale_color_identity() +  # Use identity color scale for points
+  theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "transparent", color = NA),
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(colour = "black"),
+    text = element_text(family = "Calibri"),
+    axis.title = element_text(family = "Calibri"),
+    legend.position = "bottom"
+  )
+```
+
+Open Fst matrix
+```{r}
+fst <-  as.matrix(read_csv(file.path(reports_path,
+                                     "fst",
+                                     "fst_matrix.csv")))
+rownames(fst) <- colnames(fst)
+
+heatmap(fst)
+
+```
+
+Mantel test
+```{r}
+mantel_result <- mantel.test(dist_matrix, fst, method = "pearson", permutations = 1000)
+# Print the Mantel test results
+cat("Mantel Test Results:\n")
+cat("Observation:", mantel_result$observed, "\n")
+cat("Permutation p-value:", mantel_result$p, "\n")
+
+# Check for significance
+if (mantel_result$p < 0.05) {
+  cat("Reject the null hypothesis: There is a significant correlation between distance and FST matrices\n")
+} else {
+  cat("Fail to reject the null hypothesis: No significant correlation between distance and FST matrices\n")
+}
+```
+
+```{r}
+age_info <-  read_csv(file.path(data_path,
+                                "dfs",
+                                "island_info.csv")) %>% 
+  as_tibble() %>% 
+  rename(pop1=pop) %>% 
+  dplyr::select(pop1,colonisation_time)
+
+island_info <-  read_csv(file.path(data_path,
+                                   "dfs",
+                                   "island_info.csv")) %>% 
+  as_tibble() %>% 
+  rename(pop1=pop) %>% 
+  filter(island_continent=="island")
+
+continent_info <-  read_csv(file.path(data_path,
+                                      "dfs",
+                                      "island_info.csv")) %>% 
+  as_tibble() %>% 
+  rename(pop1=pop) %>% 
+  filter(island_continent=="continent")
+
+populations <- rownames(fst)
+
+data <- expand.grid(pop1 = populations, pop2 = populations)
+
+# Convert matrices to long format
+fst_data <- data.frame(
+  pop1 = rep(populations, each = length(populations)),
+  pop2 = rep(populations, times = length(populations)),
+  fst = as.vector(fst)
+)
+
+dist_data <- data.frame(
+  pop1 = rep(populations, each = length(populations)),
+  pop2 = rep(populations, times = length(populations)),
+  distance = as.vector(dist_matrix)
+)
+
+# Merge data frames
+merged_data <- merge(fst_data, 
+                     dist_data, 
+                     by = c("pop1", 
+                            "pop2")) %>% 
+  filter(fst>0)
+
+
+merged_data <- merged_data %>%
+  mutate(island_continent = case_when(
+    pop1 %in% island_info$pop1 & pop2 %in% island_info$pop1 ~ "island",
+    pop1 %in% island_info$pop1 & pop2 %in% continent_info$pop1 ~ "island_continent",
+    pop1 %in% continent_info$pop1 & pop2 %in% island_info$pop1 ~ "island_continent",
+    pop1 %in% continent_info$pop1 & pop2 %in% continent_info$pop1 ~ "continent",
+    TRUE ~ "other"
+  )) %>% 
+  #filter(island_continent!="island_continent") %>% 
+  left_join(age_info, by="pop1") %>% 
+  mutate(distance=distance/1000) %>% 
+  mutate(log_distance=log(distance))# this part doesn't really make sense. need to fix
+
+m1 <- brms::brm(fst | trunc(lb = 0, ub = 1) ~ log_distance*island_continent +
+                  (1|mm(pop1,pop2)),
+                data = merged_data,
+                chains = 4,
+                iter = 4000,
+                control=list(adapt_delta=0.99, max_treedepth = 15))
+
+m1 <- readRDS(file.path(getwd(), "m1.rds"))
+
+tidy_draws <- spread_draws(m1, b_island_continentisland)
+
+m1$data %>%
+  select(-distance) %>% 
+  modelr::data_grid(log_distance = prediction::seq_range(`log(distance)`, n=101),
+                    island_continent= island_continent) %>%
+  add_epred_draws(m1, ndraws = 100, re_formula = NA) %>%
+  ggplot(aes(x = log_distance, y = fst, color = ordered(island_continent))) +
+  geom_line(aes(y = .epred, group = paste(island_continent, .draw)), alpha = .1) +
+  geom_point(data = m1$data) +
+  scale_color_brewer(palette = "Dark2")
+
+
+fst_m1_pred <- marginaleffects::predictions(m1,
+                                            type = "response",
+                                            re_formula = NULL,
+                                            ndraws = 500,
+                                            newdata = marginaleffects::datagrid(
+                                              island_continent = unique(m1$data$island_continent),
+                                              distance = modelr::seq_range(m1$data$distance, n = 100)
+                                            )
+) %>% 
+  marginaleffects::posterior_draws()
+
+
+p1=fst_m1_pred %>% 
+  filter(island_continent != "island_continent") %>%
+  ggplot(aes(x = distance/1000, y = draw, fill=island_continent)) +
+  scale_fill_manual(values=c("#d9ab2b", "#35789c", "#b34253"))+
+  ggdist::stat_lineribbon(alpha=.2) +
+  labs(
+    x = "Distance (km)",  # Updated x-axis label
+    y = "Fst (adjusted prediction)",
+  ) +
+  guides(colour = "none") +
+  titheme() +
+  theme(
+    aspect.ratio = 1,
+    strip.background = element_blank(),
+    strip.text.x = element_blank())
+
+fst_m1_pred_2 <- marginaleffects::predictions(m1,
+                                              type = "response",
+                                              re_formula = NULL,
+                                              ndraws = 500,
+                                              newdata = marginaleffects::datagrid(
+                                                island_continent = unique(m1$data$island_continent)
+                                              )
+) %>% 
+  marginaleffects::posterior_draws()
+
+p2=fst_m1_pred_2 %>% 
+  filter(island_continent!="island_continent") %>% 
+  ggplot(aes(x = draw, y = island_continent, fill=island_continent)) +
+  scale_fill_manual(values=c("#d9ab2b", "#35789c"),
+                    labels = c("Continent","Island"))+
+  scale_y_discrete(labels = c("Continent", 'Island'))+
+  stat_halfeye(alpha=0.4) +
+  labs(x = "Fst (adjusted prediction)", y = "")+
+  guides(colour = "none") +
+  titheme() +
+  theme(
+    aspect.ratio = 1,
+    strip.background = element_blank(),
+    strip.text.x = element_blank())
+
+p2+p1+plot_layout(guides = 'collect')+plot_annotation(tag_levels = 'A')
+```
+
+```{r}
+print(brms::hypothesis(
+  m1,
+  "island_continentisland -
+    Intercept < 0"
+)$hypothesis, digits = 2)
+
+```
+

@@ -1,0 +1,49 @@
+---
+title: "plot_wgsassign.Rmd"
+author: "Andrea Estandia<br>"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  github_document:
+  toc: true
+toc_depth: 4
+editor_options:
+  chunk_output_type: console
+---
+  <br>
+  
+```{r setup, echo=FALSE}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r, echo=FALSE}
+source("./src/phylo_silvereye_source.R")
+```
+
+```{r}
+df <- 
+  read.csv(file.path(reports_path, 
+                     "WGSassign", 
+                     "output_loo.csv"), header=T)
+```
+
+```{r}
+# Calculate the posterior probabilities
+likelihoods <- df[, 3:28]  # Extract the likelihood columns
+posterior_probs <- 1-(likelihoods / rowSums(likelihoods))  # Calculate posterior probabilities
+
+# Determine the population of highest likelihood of origin
+max_population <- colnames(posterior_probs)[apply(posterior_probs, 1, which.max)]
+
+# Add the posterior probabilities and max population to the df
+df$Posterior_Prob <- max(posterior_probs, na.rm = TRUE)
+df$Max_Population <- max_population
+
+# Display the updated df
+print(df)
+
+write.csv(df, "prob_pop_assign.csv", row.names=F)
+```
+

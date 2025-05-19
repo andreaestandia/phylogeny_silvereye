@@ -1,0 +1,37 @@
+---
+title: "plot_treemix.Rmd"
+author: "Andrea Estandia"
+date: "03/08/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, echo=FALSE}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r, echo=FALSE}
+source("./src/phylo_silvereye_source.R")
+source("./src/plotting_funcs.R")
+```
+
+```{r}
+prefix="neutral_snps_certain_renamed.LDpruned_mainland"
+```
+
+```{r}
+par(mfrow=c(3,4))
+for(edge in 1:10){
+  plot_tree(cex=0.8,file.path(reports_path,"treemix", "mainland", paste0(prefix,".",edge,".3")))
+  title(paste(edge,"edges"))
+}
+
+plot_tree(cex=0.8,file.path(reports_path,"treemix", "mainland", paste0(prefix,".8.4")))
+
+plot_resid(file.path(reports_path,"treemix", "mainland", paste0(prefix,".8.4")), pop_order=file.path(reports_path,"treemix", "mainland","pop_order"))
+```
+

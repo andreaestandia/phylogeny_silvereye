@@ -1,0 +1,207 @@
+---
+title: "plot_ngsadmix.Rmd"
+author: "Andrea Estandia<br>"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  github_document:
+  toc: true
+toc_depth: 4
+editor_options:
+  chunk_output_type: console
+---
+  <br>
+  
+```{r setup, echo=FALSE}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r, echo=FALSE}
+source("./src/phylo_silvereye_source.R")
+```
+
+Load pop information
+```{r}
+sex <-
+  read_csv(file.path(data_path,"dfs", "geneticsex.csv"))
+
+label <- 
+  read_csv(file.path(data_path,"dfs", "list_samples_phylogeny.csv")) %>% 
+  left_join(sex) %>% 
+  mutate(id=mixedsort(id)) %>% 
+  filter(species!="Zosterops_borbonicus") %>% 
+  filter(sample_name!="AMB37")
+
+group.colors <- c(k2 = "#474747", k1 = "#5498b3")
+```
+
+Read ngsadmix results
+```{r}
+# Load necessary libraries
+library(stringr)
+
+# Replace with the path to your folder
+folder_path <- file.path(reports_path, "ngsadmix", "all")
+
+# Function to extract the number from the file name
+extract_number <- function(filename) {
+  as.integer(str_extract(filename, "(?<=ngsadmix_)\\d+(?=.qopt)"))
+}
+
+# List all files in the folder
+file_list <- list.files(folder_path, pattern = "ngsadmix_\\d+.qopt")
+
+# Open each file and assign variables based on their numbers
+for (filename in file_list) {
+  number <- extract_number(filename)
+  variable_name <- paste("ngsadmix_", number, sep = "")
+  file_path <- file.path(folder_path, filename)
+  df <- read.table(file_path, header = FALSE)
+  # Determine the columns to gather dynamically
+  cols_to_gather <- paste0("V", 1:ncol(df))
+   # Perform the gather operation
+  df <- gather(df, "cluster", "freq", cols_to_gather)
+  
+  # Set appropriate column names
+  colnames(df) <- c("cluster", "freq")
+  
+  df <- cbind(df, label) 
+    # Assign the modified data frame back to the same variable name
+  assign(variable_name, df)
+}
+```
+
+Load results from NGSadmix and create df with each k
+```{r}
+# Vector of levels for the species_subsp factor
+species_subsp_levels <- c(
+  "Zosterops_griseotinctus", "Zosterops_tenuirostris", "Zosterops_flavifrons",
+  "Zosterops_xanthochrous", "Zosterops_inornatus", "Zosterops_minutus",
+  "Zosterops_lateralis_melanops", "Zosterops_lateralis_nigrescens",
+  "Zosterops_lateralis_griseonota", "Zosterops_lateralis_vatensis",
+  "Zosterops_lateralis_tropica", "Zosterops_lateralis_tephropleurus",
+  "Zosterops_lateralis_chlorocephalus", "Zosterops_lateralis_cornwalli",
+  "Zosterops_lateralis_westernensis", "Zosterops_lateralis_lateralis",
+  "Zosterops_lateralis_chloronotus", "Zosterops_lateralis_pinarochrous"
+)
+
+# Function to create the plot for each dataframe
+create_plot <- function(df) {
+  df <- df %>%
+    arrange(species_subsp) %>%
+    mutate(species_subsp = factor(species_subsp, levels = species_subsp_levels)) %>%
+    ggplot(aes(x = freq, y = id)) +
+    geom_barh(aes(fill = cluster, colour = cluster), stat = "identity", width = 1) +
+    facet_grid(species_subsp ~ ., switch = "y", scales = "free_y", space = "fixed") +
+    theme_void() +
+    theme(
+      panel.spacing.x = unit(0.25, "lines"),
+      strip.text.y.left = element_text(
+        size = 10,
+        angle = 0,
+        hjust = 1,
+        margin = margin(r = 10),
+        family = "Helvetica-Narrow"
+      ),
+      legend.position = 'none'
+    )
+  return(df)
+}
+
+# Assuming you have a list of dataframes, named ngsadmix_1, ngsadmix_2, ..., ngsadmix_max_k
+max_k <- 11  # Replace this with the actual maximum value of k
+ngsadmix_list <- lapply(1:max_k, function(k) get(paste0("ngsadmix_", k)))
+
+# Create a list of plots for each dataframe
+plots_list <- lapply(ngsadmix_list, create_plot)
+```
+
+
+```{r}
+# Vector of levels for the species_subsp factor
+pop_admix_levels <- c(
+  "Zosterops_griseotinctus", "Zosterops_tenuirostris", "Zosterops_flavifrons",
+  "Zosterops_xanthochrous", "Zosterops_inornatus", "Zosterops_minutus",
+  "Lifou", "Ouvea", "Mare",
+  "GrandTerre", "Tanna", "Efate", "Pentecost", "Ambrym", "Ambae",
+  "Malekula", "EspirituSanto", "Gaua", "VanuaLava",
+  "LordHoweIsland", "Heron",
+  "Queensland", "NewSouthWales","Victoria",
+  "WesternAustralia", "SouthAustralia",
+  "Tasmania", "SouthIslandNZ", "ChathamIsland",
+  "NorthIslandNZ", "NorfolkIsland", "Tahiti"
+)
+
+# Function to create the plot for each dataframe
+create_plot <- function(df) {
+  palette_Dark2 <- colorRampPalette(brewer.pal(18, "Dark2"))
+  pal <- palette_Dark2(length(unique(df$pop_admix)))
+  col<-sample(pal,length(unique(df$cluster)))
+  
+  df <- df %>%
+    arrange(pop_admix) %>%
+    mutate(pop_admix = factor(pop_admix, levels = pop_admix_levels)) %>%
+    ggplot(aes(x = freq, y = id)) +
+    geom_barh(aes(fill = cluster, colour = cluster), stat = "identity", width = 1) +
+    facet_grid(pop_admix ~ ., switch = "y", scales = "free_y", space = "fixed") +
+    theme_void() +
+    theme(
+      panel.spacing.x = unit(0.25, "lines"),
+      strip.text.y.left = element_text(
+        size = 10,
+        angle = 0,
+        hjust = 1,
+        margin = margin(r = 10),
+        family = "Helvetica-Narrow"
+      ),
+      legend.position = 'none'
+    )+
+    scale_color_manual(values=col)+
+    scale_fill_manual(values=col)
+  return(df)
+}
+
+# Assuming you have a list of dataframes, named ngsadmix_1, ngsadmix_2, ..., ngsadmix_max_k
+max_k <- 18  # Replace this with the actual maximum value of k
+ngsadmix_list <- lapply(1:max_k, function(k) get(paste0("ngsadmix_", k)))
+
+# Create a list of plots for each dataframe
+plots_list <- lapply(ngsadmix_list, create_plot)
+```
+
+
+```{r}
+col3<- c("#c83737", #SM
+         "#2c89a0", #ANZO
+         "#ffcc00") #other
+
+df <- ngsadmix_3 %>%
+  arrange(pop_admix) %>%
+  mutate(pop_admix = factor(pop_admix, levels = pop_admix_levels)) %>%
+  ggplot(aes(x = freq, y = id)) +
+  geom_barh(aes(fill = cluster, colour = cluster),
+            stat = "identity",
+            width = 1) +
+  facet_grid(pop_admix ~ .,
+             switch = "y",
+             scales = "free_y",
+             space = "fixed") +
+  theme_void() +
+  theme(
+    panel.spacing.x = unit(0.25, "lines"),
+    strip.text.y.left = element_text(
+      size = 10,
+      angle = 0,
+      hjust = 1,
+      margin = margin(r = 10),
+      family = "Helvetica-Narrow"
+    ),
+    legend.position = 'none'
+  ) +
+  scale_color_manual(values = col3) +
+  scale_fill_manual(values = col3)
+df
+```
+
